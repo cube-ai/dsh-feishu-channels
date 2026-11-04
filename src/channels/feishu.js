@@ -1,0 +1,399 @@
+import { channelNotice } from '../engine/command-locale.js';
+import { choiceSendError, ChoiceSendError } from '../engine/choice-delivery.js';
+import { afterPartialDelivery, DeliveryRejected } from '../engine/deferred-delivery.js';
+import { diagnosticJson, platformResult, probe, requireDiagnostic } from './diagnostics.js';
+import { fileOperation } from '../engine/abort.js';
+import { quietSdkLogger } from '../engine/quiet-logger.js';
+import { KeyedSerialQueue } from '../engine/keyed-queue.js';
+import { timeoutSignal } from '../engine/abort.js';
+import { fileMedia, MAX_CHANNEL_IMAGES } from './media.js';
+import { markdownTableOffsets } from '../engine/split.js';
+/** 飞书一张卡片最多 5 个 table 元素，超了整个写入会被拒（230099 / ErrCode 11310），旧卡片内容会卡住。 */
+export const FEISHU_CARD_MAX_TABLES = 5;
+/** 按表格数量拆正文，保证每张卡不超上限，且不会把表格切一半。 */
+export function splitByTableLimit(text, maxTables = FEISHU_CARD_MAX_TABLES) {
+    const value = text ?? '';
+    const starts = markdownTableOffsets(value);
+    if (starts.length <= maxTables)
+        return value ? [value] : [];
+    const parts = [];
+    let from = 0;
+    for (let index = maxTables; index < starts.length; index += maxTables) {
+        parts.push(value.slice(from, starts[index]));
+        from = starts[index];
+    }
+    parts.push(value.slice(from));
+    return parts.filter((part) => part.trim() !== '');
+}
+/** 飞书限流：消息接口 230020 / 11232，通用频控 99991400（HTTP 429，旧接口为 400）。 */
+const FEISHU_THROTTLE_CODES = new Set([230020, 11232, 99991400]);
+function isThrottleCode(code) {
+    return FEISHU_THROTTLE_CODES.has(Number(code));
+}
+/** SDK 在 HTTP 非 2xx 时抛 AxiosError：429，或响应体带限流码，说明请求被限流、未被受理。 */
+function throttledResponse(error) {
+    const response = error?.response;
+    return response?.status === 429 || isThrottleCode(response?.data?.code);
+}
+/** 诊断只保留受限长度的数字状态码，禁止输出响应正文、请求配置或凭据。 */
+function httpFailureSummary(error) {
+    const response = error?.response;
+    const status = response?.status;
+    const code = response?.data?.code;
+    const safeStatus = typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599 ? status : 'unknown';
+    const safeCode = typeof code === 'number' && Number.isSafeInteger(code) && code >= 0 && code <= 999_999_999
+        ? code : typeof code === 'string' && /^\d{1,9}$/.test(code) ? code : 'unknown';
+    return `http=${safeStatus} code=${safeCode}`;
+}
+// 沿用 SDK 允许缺省业务码的响应，同时兼容数字和字符串零码。
+function isRejectedCode(code) {
+    return code !== undefined && code !== 0 && code !== '0';
+}
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+// Shared across all images in one message, not renewed for each resource.
+const MAX_MESSAGE_IMAGE_BYTES = MAX_IMAGE_BYTES;
+/** SDK messageResource.get is the receive-side API, not im.image.get. */
+export async function resolveFeishuContent(client, message, signal = AbortSignal.timeout(30_000)) {
+    const content = JSON.parse(message.content ?? '{}');
+    const keys = [];
+    const texts = [];
+    if (message.message_type === 'text')
+        texts.push(content.text ?? '');
+    else if (message.message_type === 'image') {
+        if (!content.image_key)
+            throw new Error('图片资源缺失');
+        keys.push(content.image_key);
+    }
+    else if (message.message_type === 'file') {
+        if (!content.file_key)
+            throw new Error('文件资源缺失');
+        keys.push(content.file_key);
+    }
+    else if (message.message_type === 'post') {
+        const post = content.content ? content : content.zh_cn ?? content.en_us ?? Object.values(content)[0];
+        if (!post || !Array.isArray(post.content))
+            throw new Error('富文本内容无效');
+        if (post.title)
+            texts.push(post.title);
+        for (const row of post.content) {
+            for (const item of row) {
+                if (item.tag === 'img') {
+                    if (!item.image_key)
+                        throw new Error('图片资源缺失');
+                    keys.push(item.image_key);
+                }
+                else if (typeof item.text === 'string')
+                    texts.push(item.text);
+            }
+        }
+    }
+    else
+        throw new Error('暂不支持该消息类型，请发送文字或图片。');
+    if (keys.length > MAX_CHANNEL_IMAGES)
+        throw new Error('图片数量超过上限');
+    const media = [];
+    let totalBytes = 0;
+    for (const key of keys) {
+        if (totalBytes >= MAX_MESSAGE_IMAGE_BYTES)
+            throw new Error('图片累计大小超过上限');
+        if (!message.message_id)
+            throw new Error('图片消息 ID 缺失');
+        signal.throwIfAborted();
+        let stream;
+        let abort = () => { };
+        const aborted = new Promise((_, reject) => {
+            abort = () => { stream?.destroy(new Error('图片下载已取消或超时')); reject(new Error('图片下载已取消或超时')); };
+            signal.addEventListener('abort', abort, { once: true });
+        });
+        try {
+            const resource = await Promise.race([
+                client.im.messageResource.get({ path: { message_id: message.message_id, file_key: key }, params: { type: message.message_type === 'file' ? 'file' : 'image' } }).then(resource => {
+                    stream = resource.getReadableStream();
+                    if (signal.aborted) {
+                        stream.destroy();
+                        throw new Error('图片下载已取消或超时');
+                    }
+                    return resource;
+                }), aborted,
+            ]);
+            const consume = async () => {
+                const chunks = [];
+                let size = 0;
+                if (Number(resource.headers?.['content-length']) > MAX_IMAGE_BYTES)
+                    throw new Error('图片超过 20 MB 上限');
+                if (Number(resource.headers?.['content-length']) > MAX_MESSAGE_IMAGE_BYTES - totalBytes)
+                    throw new Error('图片累计大小超过上限');
+                for await (const chunk of stream) {
+                    const bytes = Buffer.from(chunk);
+                    size += bytes.length;
+                    totalBytes += bytes.length;
+                    if (totalBytes > MAX_MESSAGE_IMAGE_BYTES)
+                        throw new Error('图片累计大小超过上限');
+                    if (size > MAX_IMAGE_BYTES)
+                        throw new Error('图片超过 20 MB 上限');
+                    chunks.push(bytes);
+                }
+                if (!size)
+                    throw new Error('图片为空');
+                if (message.message_type === 'file')
+                    return fileMedia(Buffer.concat(chunks), content.file_name);
+                return { kind: 'image', data: Buffer.concat(chunks), mediaType: resource.headers?.['content-type']?.split(';')[0] };
+            };
+            media.push(await Promise.race([consume(), aborted]));
+        }
+        finally {
+            signal.removeEventListener('abort', abort);
+            stream?.destroy();
+        }
+    }
+    return { text: texts.join('\n'), media };
+}
+/** 群消息只有明确 mention 当前机器人本身才算 addressed；@ 其他成员不触发。 */
+export function isFeishuBotMentioned(mentions, botOpenId) {
+    if (!botOpenId || !Array.isArray(mentions))
+        return false;
+    return mentions.some((mention) => mention.id?.open_id === botOpenId);
+}
+export function createFeishuChannel(id, config, log, loadSdk) {
+    const appId = config.appId?.trim();
+    const appSecret = config.appSecret?.trim();
+    if (!appId || !appSecret)
+        return undefined;
+    let handler;
+    let client;
+    let ws;
+    let statusText = '未连接';
+    let lifecycle;
+    const label = '飞书';
+    return {
+        id,
+        label,
+        maxMessageLength: 4000,
+        async start() {
+            lifecycle?.abort();
+            const generation = new AbortController();
+            lifecycle = generation;
+            const current = () => lifecycle === generation && !generation.signal.aborted;
+            const incoming = new KeyedSerialQueue();
+            let sdk;
+            try {
+                sdk = await (loadSdk ? loadSdk() : import('@larksuiteoapi/node-sdk'));
+            }
+            catch {
+                throw new Error('缺少依赖 @larksuiteoapi/node-sdk');
+            }
+            const logger = quietSdkLogger(() => log(`[${id}] SDK 请求或连接异常（敏感详情已隐藏）`), id);
+            const loggerLevel = sdk.LoggerLevel?.error ?? 1;
+            const httpInstance = Object.create(sdk.defaultHttpInstance);
+            httpInstance.request = (opts) => sdk.defaultHttpInstance.request({ ...opts, timeout: 30_000, maxRedirects: 0 });
+            client = new sdk.Client({ appId, appSecret, logger, loggerLevel, httpInstance });
+            const identity = await client.request({ url: '/open-apis/bot/v3/info', method: 'GET' });
+            const botOpenId = identity.bot?.open_id?.trim() ?? '';
+            if (!botOpenId)
+                throw new Error(`${id}: 无法获取机器人 open_id`);
+            const dispatcher = new sdk.EventDispatcher({}).register({
+                'card.action.trigger': async (data) => {
+                    const token = data.action?.value?.token;
+                    const chatId = data.context?.open_chat_id;
+                    if (current() && token && chatId && data.operator?.open_id)
+                        void Promise.resolve(handler?.({ chatId, userId: data.operator.open_id,
+                            text: '', actionToken: token, kind: data.action?.value?.group ? 'group' : 'dm', addressed: true,
+                        })).catch(() => log(`[${id}] 按钮操作失败`));
+                    return {};
+                },
+                'im.message.receive_v1': async (data) => {
+                    const message = data.message;
+                    if (!message)
+                        return;
+                    const group = message.chat_type === 'group';
+                    const addressed = !group || isFeishuBotMentioned(message.mentions, botOpenId);
+                    if (!addressed || !message.chat_id || !current())
+                        return;
+                    const chatId = message.chat_id;
+                    return incoming.run(chatId, async () => {
+                        if (!current())
+                            return;
+                        let resolved;
+                        try {
+                            resolved = await resolveFeishuContent(client, message, timeoutSignal(30_000, generation.signal));
+                        }
+                        catch {
+                            if (!current())
+                                return;
+                            log(`[${id}] 图片或消息读取失败`);
+                            await client?.im.message.create({
+                                params: { receive_id_type: 'chat_id' },
+                                data: { receive_id: message.chat_id, msg_type: 'text', content: JSON.stringify({ text: channelNotice(config.host, '图片或消息读取失败，请重发图片或发送文字。') }) },
+                            }).then(result => {
+                                const code = result?.code;
+                                if (isRejectedCode(code))
+                                    throw new Error('media-notice-rejected');
+                            }).catch(() => log(`[${id}] 媒体提示发送失败`));
+                            return;
+                        }
+                        if (!current())
+                            return;
+                        await handler?.({
+                            chatId,
+                            userId: data.sender?.sender_id?.open_id,
+                            text: resolved.text,
+                            ...(resolved.media.length ? { media: resolved.media } : {}),
+                            messageId: message.message_id,
+                            kind: group ? 'group' : 'dm',
+                            addressed,
+                        });
+                    }).catch(() => { if (current())
+                        log(`[${id}] 消息处理失败`); });
+                },
+            });
+            const wsClient = new sdk.WSClient({ appId, appSecret, logger, loggerLevel });
+            ws = wsClient;
+            await wsClient.start({ eventDispatcher: dispatcher });
+            statusText = '长连接已建立';
+            log(`[${id}] WebSocket 长连接已启动`);
+        },
+        async stop() {
+            lifecycle?.abort();
+            lifecycle = undefined;
+            ws?.close({ force: true });
+            ws = undefined;
+            statusText = '已停止';
+        },
+        canDeliverDeferred() { return statusText === '长连接已建立'; },
+        async send(chatId, text) {
+            if (!client)
+                throw new Error(`${id}: 尚未连接`);
+            const sender = client;
+            // 普通回复也走卡片 markdown，标题、列表和表格才会被渲染；按表格数量拆卡。
+            let delivered = false;
+            for (const part of splitByTableLimit(text)) {
+                try {
+                    // 仅明确业务拒绝或 HTTP 400 回退；网络结果未知时不重发，避免重复投递。
+                    // 飞书要渲染 Markdown 表格，卡片必须是 Schema 2.0（body.elements）
+                    const card = await sender.im.message.create({
+                        params: { receive_id_type: 'chat_id' },
+                        data: {
+                            receive_id: chatId,
+                            msg_type: 'interactive',
+                            content: JSON.stringify({ schema: '2.0', config: { wide_screen_mode: true }, body: { elements: [{ tag: 'markdown', content: part }] } }),
+                        },
+                    }).catch((error) => {
+                        const response = error?.response;
+                        // 旧接口也可能用 HTTP 400 返回限流，必须优先保留上层退避语义。
+                        if (response?.status !== 400 || throttledResponse(error))
+                            throw error;
+                        log(`[${id}] 卡片发送被拒，回退纯文本 ${httpFailureSummary(error)}`);
+                        return { code: 'http-400' };
+                    });
+                    if (!isRejectedCode(card?.code)) {
+                        delivered = true;
+                        continue;
+                    }
+                    // 被限流时改发纯文本只会再被限流，直接交给上层退避重试。
+                    if (isThrottleCode(card?.code))
+                        throw new DeliveryRejected(`${id}: text-send-throttled code=${card?.code}`);
+                    const rejected = card?.code;
+                    // 卡片被拒（内容过大、接口不支持等）时退回纯文本，不丢正文。
+                    const plain = await sender.im.message.create({
+                        params: { receive_id_type: 'chat_id' },
+                        data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text: part }) },
+                    }).catch((error) => {
+                        log(`[${id}] 纯文本回退发送失败 ${httpFailureSummary(error)}`);
+                        throw error;
+                    });
+                    if (isThrottleCode(plain?.code))
+                        throw new DeliveryRejected(`${id}: text-send-throttled code=${plain?.code}`);
+                    if (isRejectedCode(plain?.code))
+                        throw new Error(`${id}: text-send-rejected code=${plain?.code} card=${String(rejected)}`);
+                    delivered = true;
+                }
+                catch (error) {
+                    const normalized = error instanceof DeliveryRejected || !throttledResponse(error)
+                        ? error : new DeliveryRejected(`${id}: text-send-throttled http=${error.response?.status}`);
+                    throw delivered ? afterPartialDelivery(normalized) : normalized;
+                }
+            }
+        },
+        async sendChoices(message, text, buttons) {
+            if (!client)
+                throw new Error('channel-unavailable');
+            const result = await client.im.message.create({ params: { receive_id_type: 'chat_id' }, data: {
+                    receive_id: message.chatId, msg_type: 'interactive', content: JSON.stringify({ config: { wide_screen_mode: true }, elements: [
+                            { tag: 'markdown', content: text },
+                            ...buttons.map(button => ({ tag: 'action', actions: [{ tag: 'button', text: { tag: 'plain_text', content: button.label.slice(0, 60) },
+                                        type: 'default', value: { token: button.token, group: message.kind === 'group' } }] })),
+                        ] }),
+                } }).catch(error => { throw choiceSendError(error); });
+            if (isRejectedCode(result?.code))
+                throw new ChoiceSendError('rejected');
+            const messageId = result?.data?.message_id;
+            const sender = client;
+            if (!messageId)
+                return;
+            return { close: async (status) => {
+                    const updated = await sender.im.message.patch({ path: { message_id: messageId }, data: { content: JSON.stringify({ config: { wide_screen_mode: true }, elements: [
+                                    { tag: 'markdown', content: text }, { tag: 'div', text: { tag: 'plain_text', content: status } },
+                                ] }) } });
+                    if (isRejectedCode(updated?.code))
+                        throw new Error('card-update-failed');
+                } };
+        },
+        async addStatusReaction(message, state, _label, signal) {
+            if (!client || !message.messageId || state === 'cancelled')
+                return;
+            const emoji = (state === 'success' || state === 'ended') ? 'DONE' : state === 'error' ? 'ERROR' : 'OnIt';
+            signal.throwIfAborted();
+            const result = await fileOperation(client.im.messageReaction.create({
+                path: { message_id: message.messageId }, data: { reaction_type: { emoji_type: emoji } },
+            }), signal);
+            if (isRejectedCode(result.code) || !result.data?.reaction_id)
+                throw new Error('reaction-rejected');
+            return result.data.reaction_id;
+        },
+        async removeStatusReaction(message, reaction, signal) {
+            if (!client)
+                return;
+            signal.throwIfAborted();
+            const result = await fileOperation(client.im.messageReaction.delete({ path: { message_id: message.messageId, reaction_id: reaction } }), signal);
+            if (isRejectedCode(result.code))
+                throw new Error('reaction-rejected');
+        },
+        async sendFile(chatId, file, signal) {
+            if (!client || !lifecycle)
+                throw new Error(`${id}: 尚未连接`);
+            const active = client;
+            const scope = AbortSignal.any([timeoutSignal(120_000, lifecycle.signal), ...(signal ? [signal] : [])]);
+            scope.throwIfAborted();
+            const uploaded = await fileOperation(active.im.file.create({ data: { file_type: 'stream', file_name: file.name, file: Buffer.from(file.data) } }), scope);
+            scope.throwIfAborted();
+            if (!uploaded?.file_key)
+                throw new Error('file-upload-rejected');
+            const sent = await active.im.message.create({
+                params: { receive_id_type: 'chat_id' },
+                data: { receive_id: chatId, msg_type: 'file', content: JSON.stringify({ file_key: uploaded.file_key }) },
+            });
+            if (isRejectedCode(sent.code))
+                throw new Error('file-send-rejected');
+        },
+        setMessageHandler(h) { handler = h; },
+        async diagnose(signal) {
+            const domain = 'https://open.feishu.cn';
+            let token;
+            const auth = await probe('credentials', signal, async () => {
+                const data = await diagnosticJson(`${domain}/open-apis/auth/v3/tenant_access_token/internal`, signal, { app_id: appId, app_secret: appSecret });
+                platformResult(data.code, [10003, 10014]);
+                requireDiagnostic(typeof data.tenant_access_token === 'string' && data.tenant_access_token);
+                token = data.tenant_access_token;
+            });
+            if (auth.status !== 'passed')
+                return [auth];
+            return [auth, await probe('bot', signal, async () => {
+                    const data = await diagnosticJson(`${domain}/open-apis/bot/v3/info`, signal, undefined, { Authorization: `Bearer ${token}` });
+                    platformResult(data.code);
+                    const bot = data.bot;
+                    requireDiagnostic(typeof bot?.open_id === 'string' && bot.open_id);
+                })];
+        },
+        status() { return statusText; },
+    };
+}

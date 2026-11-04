@@ -1,0 +1,15 @@
+DSH Feishu Channel (DSH飞书频道)
+Copyright 2026 cubeai
+
+This product includes software derived from dsh-im-connect
+(https://github.com/MichengAI/dsh-im-connect), Copyright MichengAI,
+licensed under the Apache License, Version 2.0.
+
+Modifications for this product:
+- Only the Feishu channel is retained; all other IM channel adapters and UI were removed.
+- Runtime identifiers, state directories, credential references, HTTP routes, client
+  module ids, locale namespaces, CSS prefixes, and session id prefixes were renamed so
+  this plugin can run independently alongside dsh-im-connect.
+- The plugin self-update feature and channel-specific proxy/topic support were removed.
+
+The original Apache License, Version 2.0 is included in the LICENSE file.

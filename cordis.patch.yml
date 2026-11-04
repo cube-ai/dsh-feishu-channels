@@ -1,0 +1,4 @@
+# DSH飞书频道：把飞书机器人接入本机 DeepSeek Harness。
+- insert:
+    - id: feishu-channel
+      name: '@cubeai/dsh-feishu-channels'

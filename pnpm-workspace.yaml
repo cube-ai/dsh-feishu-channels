@@ -1,0 +1,11 @@
+# The DSH host provides these peer dependencies at runtime; do not install them
+# into the plugin's local development tree.
+autoInstallPeers: false
+
+# protobufjs's postinstall only prints a version-scheme warning; there is no
+# generated runtime code to lose. Treat the ignored build as intentional.
+strictDepBuilds: false
+ignoredBuiltDependencies:
+  - protobufjs
+allowBuilds:
+  protobufjs: set this to true or false
