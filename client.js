@@ -106,6 +106,7 @@ window.__ModuleLoader__.load({
     const IconDownloadOutline = pickHostIcon("IconDownloadOutlineRegular");
     const IconCopyOutline = pickHostIcon("IconCopyOutlineRegular");
     const IconLoadingOutline = pickHostIcon("IconLoadingOutlineRegular");
+    const IconStopFill = pickHostIcon("IconStopFillRegular", "IconStopFill16", "IconStopFill");
     function alertIcon(type) {
       if (type === "success") return h(IconCheckCircleOutline, { size: 14 });
       if (type === "warning") return h(IconWarningOutline, { size: 14 });
@@ -654,7 +655,7 @@ window.__ModuleLoader__.load({
       zh: {
         "diagnostic.title": "连接诊断", "diagnostic.scope": "以下为本次平台接口或心跳检查结果。未发送测试消息，消息投递权限仍未验证。", "diagnostic.credentials": "应用凭据验证", "diagnostic.bot": "机器人身份查询", "diagnostic.gateway": "网关查询", "diagnostic.passed": "通过", "diagnostic.failed": "失败", "diagnostic.unverified": "未验证",
         "diagnostic.local-state": "无法读取凭据或初始化本地账号状态，请检查本机配置及文件访问权限。", "diagnostic.cancelled": "诊断已取消，未确认连接状态。", "diagnostic.ok": "平台已返回有效响应", "diagnostic.auth": "凭据缺失或失效，请重新配置或扫码绑定。", "diagnostic.permission": "平台拒绝访问，请检查应用权限。", "diagnostic.rate-limit": "平台限流，请稍后再试。", "diagnostic.server": "平台服务异常，请稍后再试。", "diagnostic.network": "网络请求失败，请检查网络或代理。", "diagnostic.timeout": "诊断超时，请检查网络后重试。", "diagnostic.invalid-response": "平台响应不完整或格式不符，无法确认可用。", "diagnostic.rejected": "平台拒绝请求，请核对应用配置和权限。", "diagnostic.missing-context": "缺少原聊天上下文，请用扫码账号先发送一条消息后重试。", "diagnostic.not-connected": "当前没有可验证的连接，请先重新连接。", "diagnostic.unsupported": "当前 SDK 或配置不支持此诊断，未判定为通过。", "diagnostic.changed": "账号状态已变化，请重新诊断。", "connection.restartRequired": "前后端版本不一致。请完整重启 DSH 并刷新页面后重新诊断。", "connection.receiveUnknown": "无法读取接收开关，请重启 DSH 并刷新页面。",
-        "connection.checkFailed": "状态检查未完成，请重试；仍失败时查看本机日志。", "connection.diagnostics": "连接诊断", "action.collapse": "收起", "action.expand": "展开", "composer.remoteTitle": "飞书频道会话", "composer.remoteHint": "该会话只能在飞书客户端继续；本地输入已禁用。", "composer.model": "模型", "composer.modelLoading": "模型加载中", "composer.modelUnavailable": "模型不可用", "composer.modelReadOnly": "在账号设置中切换模型",
+        "connection.checkFailed": "状态检查未完成，请重试；仍失败时查看本机日志。", "connection.diagnostics": "连接诊断", "action.collapse": "收起", "action.expand": "展开", "composer.remoteTitle": "飞书频道会话", "composer.remoteHint": "该会话只能在飞书客户端继续；本地输入已禁用。", "composer.model": "模型", "composer.modelLoading": "模型加载中", "composer.modelUnavailable": "模型不可用", "composer.modelReadOnly": "在账号设置中切换模型", "composer.stopTitle": "停止生成？", "composer.stopDescription": "将中断当前会话正在运行的大模型推理；已排队的消息会保留。", "composer.stopConfirm": "停止生成",
         "connection.connected": "已连接", "connection.connecting": "连接中", "connection.reconnecting": "重连中", "connection.disconnected": "未连接", "connection.stopped": "已停止", "connection.error": "连接异常", "connection.unknown": "状态未知", "connection.paused": "接收已暂停",
         "connection.title": "本次状态检查", "connection.scope": "仅检查本机渠道运行状态，未验证平台凭据或消息收发。", "connection.checkedAt": "检查时间", "connection.receiveOn": "接收开关已开启", "connection.receiveOff": "接收开关已关闭；请在账号列表开启后再发送消息。", "connection.checking": "检查中…",
         "connection.next.connected": "可在原聊天发送消息验证收发；私聊仍需符合准入设置。", "connection.next.connecting": "请稍后再次检查；等待扫码时请完成手机确认。", "connection.next.reconnecting": "渠道正在尝试恢复，请稍后再次检查。", "connection.next.disconnected": "请重新连接；需要扫码的渠道可重新添加绑定。", "connection.next.stopped": "请点击重新连接以启动账号。", "connection.next.error": "请尝试重新连接；仍有异常时查看本机日志。", "connection.next.unknown": "暂时无法确认状态，请稍后再检查或查看本机日志。",
@@ -678,7 +679,7 @@ window.__ModuleLoader__.load({
       en: {
         "diagnostic.title": "Connection diagnostics", "diagnostic.scope": "Results from platform queries or a connection heartbeat in this check. No test messages were sent; message delivery permissions remain unverified.", "diagnostic.credentials": "Application credentials", "diagnostic.bot": "Bot identity query", "diagnostic.gateway": "Gateway query", "diagnostic.passed": "Passed", "diagnostic.failed": "Failed", "diagnostic.unverified": "Unverified",
         "diagnostic.local-state": "Could not read credentials or initialize local account state. Check local configuration and file permissions.", "diagnostic.cancelled": "The check was cancelled. Connection status was not verified.", "diagnostic.ok": "The platform returned a valid response", "diagnostic.auth": "Credentials are missing or invalid. Configure or pair the account again.", "diagnostic.permission": "Access was denied. Check application permissions.", "diagnostic.rate-limit": "The platform rate limit was reached. Retry later.", "diagnostic.server": "The platform service failed. Retry later.", "diagnostic.network": "The request failed. Check your network or proxy.", "diagnostic.timeout": "The check timed out. Check your network and retry.", "diagnostic.invalid-response": "The platform response was incomplete or invalid. Availability could not be confirmed.", "diagnostic.rejected": "The platform rejected the request. Check application settings and permissions.", "diagnostic.missing-context": "The original chat context is missing. Send a message from the paired account and retry.", "diagnostic.not-connected": "No active connection is available to verify. Reconnect first.", "diagnostic.unsupported": "The current SDK or configuration does not support this check. It has not passed.", "diagnostic.changed": "The account state changed. Run diagnostics again.", "connection.restartRequired": "The frontend and backend versions do not match. Fully restart DSH, refresh this page, and retry.", "connection.receiveUnknown": "The receiving setting is unavailable. Restart DSH and refresh this page.",
-        "connection.checkFailed": "The status check could not be completed. Retry, or check the local logs if it keeps failing.", "connection.diagnostics": "Connection diagnostics", "action.collapse": "Collapse", "action.expand": "Expand", "composer.remoteTitle": "Feishu channel session", "composer.remoteHint": "This session can only continue in Feishu; local input is disabled.", "composer.model": "Model", "composer.modelLoading": "Loading models", "composer.modelUnavailable": "Model unavailable", "composer.modelReadOnly": "Change the model in account settings",
+        "connection.checkFailed": "The status check could not be completed. Retry, or check the local logs if it keeps failing.", "connection.diagnostics": "Connection diagnostics", "action.collapse": "Collapse", "action.expand": "Expand", "composer.remoteTitle": "Feishu channel session", "composer.remoteHint": "This session can only continue in Feishu; local input is disabled.", "composer.model": "Model", "composer.modelLoading": "Loading models", "composer.modelUnavailable": "Model unavailable", "composer.modelReadOnly": "Change the model in account settings", "composer.stopTitle": "Stop generating?", "composer.stopDescription": "This interrupts the running model turn in this session; queued messages are preserved.", "composer.stopConfirm": "Stop generating",
         "connection.connected": "Connected", "connection.connecting": "Connecting", "connection.reconnecting": "Reconnecting", "connection.disconnected": "Disconnected", "connection.stopped": "Stopped", "connection.error": "Connection error", "connection.unknown": "Status unknown", "connection.paused": "Receiving paused",
         "connection.title": "Status check result", "connection.scope": "Checks local channel runtime only. Platform credentials and message delivery have not been verified.", "connection.checkedAt": "Checked at", "connection.receiveOn": "Receiving is enabled", "connection.receiveOff": "Receiving is disabled. Enable it in the account list before sending messages.", "connection.checking": "Checking…",
         "connection.next.connected": "Send a message in the original chat to verify delivery. Private chats still follow access settings.", "connection.next.connecting": "Check again shortly. Complete confirmation on your phone if a QR scan is pending.", "connection.next.reconnecting": "The channel is attempting to recover. Check again shortly.", "connection.next.disconnected": "Reconnect the account. QR channels may need to be added again.", "connection.next.stopped": "Select Reconnect to start the account.", "connection.next.error": "Try reconnecting. If the issue persists, check the local logs.", "connection.next.unknown": "The current state could not be confirmed. Check again later or inspect the local logs.",
@@ -940,6 +941,9 @@ window.__ModuleLoader__.load({
 .dfc-remote-model-label{font-size:12px;line-height:16px;color:var(--dsw-alias-label-tertiary,#888);white-space:nowrap}
 .dfc-remote-model-value{box-sizing:border-box;max-width:260px;padding:5px 9px;border:0.5px solid var(--dsw-alias-border-l2,#494949);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1,transparent);color:var(--dsw-alias-label-primary,#eee);font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dfc-remote-model-missing{font-size:11px}
+.dfc-remote-stop{flex:none;width:30px!important;height:30px!important;min-width:30px!important;padding:0!important;border-radius:50%!important;background:#111!important;border:0.5px solid #333!important;color:#fff!important;margin-left:8px;box-shadow:none!important}
+.dfc-remote-stop:hover:not(:disabled){background:#000!important;border-color:#444!important;color:#fff!important}
+.dfc-remote-stop svg{fill:currentColor!important}
 .dfc-remote-model-missing{flex:none;font-size:10px;line-height:14px;color:var(--dsw-alias-label-tertiary,#888);white-space:nowrap}
 @media (max-width:520px){.dfc-app-fields{grid-template-columns:minmax(0,1fr)}.dfc-remote-composer-card{flex-wrap:wrap}.dfc-remote-model{margin-left:auto}.dfc-remote-model-value{max-width:180px}}
 
@@ -2348,6 +2352,57 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function FeishuStopButton({ ctx, sessionId, useSession, t }) {
+      const running = useSession((state) => Boolean(state && state.running));
+      const [modal, modalHolder] = Modal.useModal();
+      if (!running) return null;
+      const cancel = async () => {
+        const scoped = ctx && ctx.sessions && typeof ctx.sessions.scope === "function"
+          ? ctx.sessions.scope(sessionId)
+          : undefined;
+        const conversation = scoped && typeof scoped.get === "function"
+          ? scoped.get("conversation")
+          : undefined;
+        if (conversation && typeof conversation.cancel === "function") {
+          await conversation.cancel();
+          return;
+        }
+        if (ctx && ctx.sessions && typeof ctx.sessions.cancel === "function") {
+          await ctx.sessions.cancel(sessionId);
+          return;
+        }
+        throw new Error("session cancel unavailable");
+      };
+      const requestStop = () => {
+        modal.confirm({
+          title: t("composer.stopTitle"),
+          description: t("composer.stopDescription"),
+          okText: t("composer.stopConfirm"),
+          cancelText: t("action.cancel"),
+          okButtonProps: { danger: true },
+          onOk: async () => {
+            try {
+              await cancel();
+            } catch (error) {
+              console.warn("[dsh-feishu-channels] 无法停止推理", error);
+            }
+          },
+        });
+      };
+      return h(React.Fragment, null,
+        modalHolder,
+        h(Button, {
+          size: "sm",
+          variant: "outline",
+          className: "dfc-remote-stop",
+          icon: h(IconStopFill, { size: 12 }),
+          "aria-label": t("composer.stopConfirm"),
+          title: t("composer.stopConfirm"),
+          onClick: requestStop,
+        }),
+      );
+    }
+
     function FeishuComposerGuard(props) {
       const t = props.t || fallbackT;
       return h("div", { className: "dfc-remote-composer", "data-dfc-composer-guard": "1", role: "group", "aria-label": t("composer.remoteTitle") },
@@ -2358,6 +2413,9 @@ window.__ModuleLoader__.load({
             h("div", { className: "dfc-remote-composer-hint" }, t("composer.remoteHint")),
           ),
           h(FeishuRemoteModelSelect, { sessionId: props.sessionId, t }),
+          typeof props.useSession === "function"
+            ? h(FeishuStopButton, { ctx: props.ctx, sessionId: props.sessionId, useSession: props.useSession, t })
+            : null,
         ),
       );
     }

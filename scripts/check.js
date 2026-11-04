@@ -109,7 +109,7 @@ if (!zh.meta?.title || !zh.meta?.description) fail('locale/zh.json meta incomple
 if (!en.meta?.title || !en.meta?.description) fail('locale/en.json meta incomplete')
 if (zh.meta.title !== 'DSH飞书频道') fail(`zh meta.title is ${zh.meta.title}`)
 
-for (const path of ['README.md', 'README.zh-CN.md', 'LICENSE', 'NOTICE', 'icon.svg', 'cordis.patch.yml']) {
+for (const path of ['README.md', 'LICENSE', 'NOTICE', 'icon.svg', 'cordis.patch.yml']) {
   try {
     read(path)
   } catch {

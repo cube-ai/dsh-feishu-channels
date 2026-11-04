@@ -10,7 +10,7 @@
   - `apply 完成`
   - `initEnabled`
   - `attachMappedSessions`
-- `pnpm test` passes 93 tests.
+- `pnpm test` passes 94 tests.
 - `pnpm run check` passes (syntax, isolation, manifest, locale metadata).
 - After the page loaded the new Client module, live slot inspection reports:
   - `settings.section` has **no** `feishu-channel` occupant (the settings entry was removed).
@@ -68,8 +68,9 @@ The Client module is loaded (see the live slot evidence above). Remaining page c
    copyable; App Secret is masked and can be shown/copied. The check result is collapsible.
 7. **Feishu session composer**: opening a `dfc:` session removes the text input/send
    button and shows the current account model as read-only text; switch models in
-   account settings and the display follows. The current session row is highlighted
-   in the channel list.
+   account settings and the display follows. While a turn is running, a **Stop
+   generating** button asks for confirmation before cancelling the turn. The current
+   session row is highlighted in the channel list.
 8. **No console error** such as `slot entry crashed` or a blank sidebar.
 
 If the sidebar is blank or the tabs are wrong, disable this bundle in Plugin Manager
