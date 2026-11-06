@@ -37,7 +37,9 @@ test('redirect URL list is exact and ordered', () => {
     'http://127.0.0.1:3080/api/dsh-remote-feishu/oauth/callback',
     'http://localhost:3080/api/dsh-remote-feishu/oauth/callback',
     'http://127.0.0.1:32123/api/dsh-remote-feishu/oauth/callback',
+    'http://localhost:32123/api/dsh-remote-feishu/oauth/callback',
     'http://127.0.0.1:8731/api/oauth/callback',
+    'http://localhost:8731/api/oauth/callback',
     'https://www.cubeai.com:6443/cubeaispace-dsh1-1234567890-dsh/api/dsh-remote-feishu/oauth/callback',
   ])
   assert.deepEqual(FEISHU_APP_SCOPES, {
