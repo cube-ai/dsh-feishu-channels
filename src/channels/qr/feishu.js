@@ -28,7 +28,7 @@ export function parseFeishuPoll(body) {
     const userInfo = asRecord(record.user_info);
     const brand = cleanString(userInfo.tenant_brand);
     if (brand?.toLowerCase() === 'lark')
-        return { status: 'failed', error: '检测到 Lark 账号；本插件仅支持飞书账号。' };
+        return { status: 'failed', error: '检测到 Lark 账号；本插件仅支持飞书频道。' };
     const appId = cleanString(record.client_id);
     const appSecret = cleanString(record.client_secret);
     if (appId && appSecret) {

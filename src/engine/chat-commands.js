@@ -303,7 +303,7 @@ export class ChatCommands {
                 text = channel.choiceLimits || section ? heading : text;
                 text += ` · ${page}/${pages}`;
                 if (section === 'presets')
-                    text += '\n' + replyText('选择后在当前工作区新建并切换会话，旧会话保留。账号默认预设不变。');
+                    text += '\n' + replyText('选择后在当前工作区新建并切换会话，旧会话保留。频道默认预设不变。');
                 if (!choices.length)
                     text += '\n' + replyText('暂无可选项，可返回菜单选择其他操作。');
                 choices = slices[page - 1];
@@ -454,7 +454,7 @@ export class ChatCommands {
                 const alternative = items.findIndex((item) => !current || !item.sessionIds?.includes(current.sessionId));
                 return items.length ? replyText('工作区列表 · 共 {0} 个\n\n', items.length) + items.map((item, i) => `${i + 1}. ${item.title ? oneLine(item.title) : oneLine(item.path)}${item.title ? `\n${item.path}` : ''}${current && item.sessionIds?.includes(current.sessionId) ? replyText('〔当前〕') : ''}`).join('\n') + related(alternative >= 0
                     ? replyText('新建并切换：/workspace {0}', alternative + 1)
-                    : replyText('当前只有这个工作区。直接发消息继续，或 /new 开启新会话。'), replyText('也可使用已列出的绝对路径；旧会话保留，账号默认目录不变。'), replyText('别名：/workspacelist；序号 15 分钟内有效。')) : replyText('还没有可用工作区。请先在网页添加，再发送 /workspaces。');
+                    : replyText('当前只有这个工作区。直接发消息继续，或 /new 开启新会话。'), replyText('也可使用已列出的绝对路径；旧会话保留，频道默认目录不变。'), replyText('别名：/workspacelist；序号 15 分钟内有效。')) : replyText('还没有可用工作区。请先在网页添加，再发送 /workspaces。');
             }
             const target = this.resolve(scope + ':workspaces', input);
             const workspace = items.find((item) => item.workspaceId === target || item.path === target);
@@ -487,7 +487,7 @@ export class ChatCommands {
         }
         if (command === 'presets' || command === 'presetlist' || command === 'preset') {
             const presets = await this.presets();
-            const hint = replyText('选择后在当前工作区新建并切换会话，旧会话保留。账号默认预设不变。');
+            const hint = replyText('选择后在当前工作区新建并切换会话，旧会话保留。频道默认预设不变。');
             if (command !== 'preset') {
                 this.remember(scope + ':presets', presets.map(item => `id:${item.id}`));
                 return replyText('Agent 预设') + '\n' + presets.map((item, i) => `${i + 1}. ${oneLine(item.name || item.id)} (${item.id})${item.isDefault ? replyText('〔默认〕') : ''}${item.broken ? replyText('〔不可用〕') : ''}${item.description ? '\n' + oneLine(item.description) : ''}`).join('\n\n') + related(hint, replyText('用法：/preset 序号或ID；纯数字 ID：/preset id:ID；跟随默认：/preset --default'));
@@ -600,7 +600,7 @@ export class ChatCommands {
                 replyText('状态：{0}', row?.running === true ? replyText('运行中') : row?.running === false ? replyText('空闲') : replyText('暂时无法读取')),
                 replyText('工作区：{0}', row?.cwd || replyText('暂时无法读取')),
                 model ? replyText('模型：{0}/{1}；推理：{2}', model.provider, model.model, model.reasoningEffort || replyText('默认')) : replyText('模型：暂时无法读取'),
-                ...details, replyText('账号：{0}（{1}）', channel.label, localizeStatus(this.host, channel.status())), replyText('会话 ID：{0}', sessionId),
+                ...details, replyText('频道：{0}（{1}）', channel.label, localizeStatus(this.host, channel.status())), replyText('会话 ID：{0}', sessionId),
             ].join('\n') + related(...(row?.running === true ? [replyText('补充要求：/steer 补充内容')] : []), ...actions.slice(0, 3).map(action => replyText('{0}：{1}', action.label, action.value)));
         }
         if (command === 'stop') {

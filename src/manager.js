@@ -26,7 +26,7 @@ function normalizeSendMode(input) {
     return input === 'steer' ? 'steer' : 'queue';
 }
 function channelAutoPrefix(platform) {
-    return `${CHANNEL_META[platform].label}账号`;
+    return `${CHANNEL_META[platform].label}频道`;
 }
 function parseAutoOrdinal(platform, name) {
     const trimmed = String(name ?? '').trim();
@@ -143,7 +143,8 @@ export class ChannelManager {
         this.applyAssistant(this.store.assistant);
         this.applyWorkspace(this.store.cwd);
         this.applyPermission(this.store.permission);
-        this.migrateAccountSettings();
+        if (this.migrateAccountSettings())
+            this.flush();
         const seen = new SeenStore(join(options.stateDir, 'seen.json'));
         const credentials = options.ctx.credentials;
         this.vault = credentials
@@ -223,7 +224,6 @@ export class ChannelManager {
             nameOrdinal,
             appId: typeof config.appId === 'string' ? config.appId : '',
             hasAppSecret: Boolean(config.appSecretRef || config.appSecret),
-            provisioning: config.provisioning,
             connected,
             connectionState: runtimeState,
             receiveConfigured: state.receiveEnabled !== false,
@@ -305,10 +305,9 @@ export class ChannelManager {
                         }),
                         timeout,
                     ]);
-                    const current = this.store.channels[accountId];
-                    if (current) {
-                        current.config = { ...(current.config ?? {}), provisioning };
-                        this.flush();
+                    const provisioningErrors = Array.isArray(provisioning?.errors) ? provisioning.errors : [];
+                    if (provisioningErrors.length > 0) {
+                        this.log(`[manager] 应用配置初始化未完成: ${provisioningErrors.map((item) => item?.message ?? item?.step ?? 'unknown').join('; ')}`);
                     }
                 }
             }
@@ -323,13 +322,13 @@ export class ChannelManager {
         }
         catch (error) {
             this.log(`[manager] ${id} 连接失败: ${error instanceof Error ? error.message : String(error)}`);
-            return { ok: false, error: '账号连接失败，请查看本机日志', accountId, created: !existed, newIdentity: hadAnotherIdentity };
+            return { ok: false, error: '频道连接失败，请查看本机日志', accountId, created: !existed, newIdentity: hadAnotherIdentity };
         }
     }
     async setReceive(id, receiveEnabled) {
         const accountId = this.resolveAccountId(id);
         if (!accountId)
-            return { ok: false, error: '账号不存在' };
+            return { ok: false, error: '频道不存在' };
         return this.channelOperations.run(accountId, () => this.setReceiveNow(accountId, receiveEnabled));
     }
     async setReceiveNow(id, receiveEnabled) {
@@ -571,7 +570,7 @@ export class ChannelManager {
                         }
                         const accountId = this.resolveAccountId(id);
                         if (!accountId) {
-                            send(404, { ok: false, error: '账号不存在或该渠道包含多个账号' });
+                            send(404, { ok: false, error: '频道不存在或该渠道包含多个频道' });
                             return;
                         }
                         if (action === 'approve')
@@ -589,7 +588,7 @@ export class ChannelManager {
                     const action = parts[4];
                     const body = await readBody();
                     if (!this.store.channels[accountId]) {
-                        send(404, { ok: false, error: '账号不存在' });
+                        send(404, { ok: false, error: '频道不存在' });
                         return;
                     }
                     if (action === 'settings') {
@@ -622,8 +621,6 @@ export class ChannelManager {
                             name: state.name,
                             log: this.log,
                         });
-                        state.config = { ...(state.config ?? {}), provisioning };
-                        this.flush();
                         send(200, { ok: true, account: this.accountView(accountId, state), provisioning });
                         return;
                     }
@@ -657,7 +654,7 @@ export class ChannelManager {
                         send(200, { ok: true, pending: this.pendingRequests() });
                         return;
                     }
-                    send(404, { ok: false, error: `未知账号操作 ${action}` });
+                    send(404, { ok: false, error: `未知频道操作 ${action}` });
                     return;
                 }
                 send(404, { ok: false, error: 'not found' });
@@ -729,11 +726,11 @@ export class ChannelManager {
     }
     async updateAccount(accountId, input) {
         if (!this.store.channels[accountId])
-            return { ok: false, error: '账号不存在' };
+            return { ok: false, error: '频道不存在' };
         return this.channelOperations.run(accountId, async () => {
             const state = this.store.channels[accountId];
             if (!state)
-                return { ok: false, error: '账号不存在' };
+                return { ok: false, error: '频道不存在' };
             const platform = this.platformOf(accountId, state);
             const normalized = await this.normalizeAccountSettings(platform, input, state);
             if (!normalized.ok)
@@ -774,7 +771,7 @@ export class ChannelManager {
         const job = this.channelOperations.run(accountId, async () => {
             const state = this.store.channels[accountId];
             if (!state)
-                return { ok: false, error: '账号不存在' };
+                return { ok: false, error: '频道不存在' };
             if (this.disposed)
                 return { ok: false, error: '操作失败，请查看本机日志' };
             const signal = AbortSignal.any([AbortSignal.timeout(12_000), this.diagnosticAbort.signal]);
@@ -824,7 +821,7 @@ export class ChannelManager {
     }
     async reconnect(accountId) {
         if (!this.store.channels[accountId])
-            return { ok: false, error: '账号不存在' };
+            return { ok: false, error: '频道不存在' };
         return this.channelOperations.run(accountId, async () => {
             try {
                 const state = this.store.channels[accountId];
@@ -835,7 +832,7 @@ export class ChannelManager {
             }
             catch (error) {
                 this.log(`[manager] 重新连接 ${accountId} 失败: ${error instanceof Error ? error.message : String(error)}`);
-                return { ok: false, error: '重新连接失败，请查看本机日志' };
+                return { ok: false, error: '重新连接频道失败，请查看本机日志' };
             }
         });
     }
@@ -980,7 +977,7 @@ export class ChannelManager {
             return;
         const state = this.store.channels[id];
         if (!state)
-            throw new Error('账号不存在');
+            throw new Error('频道不存在');
         const platform = this.platformOf(id, state);
         const resolved = await this.resolveSecrets(platform, id, state.config ?? {});
         if (this.disposed)
@@ -993,7 +990,7 @@ export class ChannelManager {
         try {
             adapter = createChannelAdapter(platform, resolved, this.log, accountDir, {
                 accountId: id,
-                accountLabel: state.name || `${CHANNEL_META[platform].label}账号`,
+                accountLabel: state.name || `${CHANNEL_META[platform].label}频道`,
                 host: this.ctx,
             });
             if (!adapter)
@@ -1104,11 +1101,18 @@ export class ChannelManager {
         const assistant = this.currentAssistant() ?? { provider: this.engineConfig.provider, model: this.engineConfig.model };
         const cwd = this.currentWorkspace();
         const permission = this.currentPermission();
+        let removedProvisioning = false;
         for (const [id, state] of Object.entries(this.store.channels)) {
             const platform = this.platformOf(id, state);
             state.id = id;
             state.platform = platform;
-            state.name = String(state.name || `${CHANNEL_META[platform].label}账号`).trim();
+            state.name = String(state.name || `${CHANNEL_META[platform].label}频道`).trim();
+            if (state.config && typeof state.config === 'object' && Object.prototype.hasOwnProperty.call(state.config, 'provisioning')) {
+                const nextConfig = { ...state.config };
+                delete nextConfig.provisioning;
+                state.config = nextConfig;
+                removedProvisioning = true;
+            }
             state.assistant = normalizeAssistantModel(state.assistant ?? {}) ?? assistant;
             state.cwd = normalizeWorkspacePath(state.cwd) ?? cwd;
             state.permission = normalizePermission(state.permission, this.permissionPresets().names) ?? permission;
@@ -1116,6 +1120,7 @@ export class ChannelManager {
             state.sendMode = normalizeSendMode(state.sendMode);
         }
         this.store.version = 2;
+        return removedProvisioning;
     }
     async clearUnsupportedReasoningEfforts() {
         const llm = this.ctx.get?.('llm');
@@ -1197,9 +1202,9 @@ export class ChannelManager {
         const requested = input.name !== undefined ? String(input.name) : String(previous.name ?? '');
         const trimmed = requested.trim();
         if ([...trimmed].length > ACCOUNT_REMARK_LIMIT)
-            return { ok: false, error: `账号备注不能超过 ${ACCOUNT_REMARK_LIMIT} 个字符` };
+            return { ok: false, error: `频道名称不能超过 ${ACCOUNT_REMARK_LIMIT} 个字符` };
         if (/[\u0000-\u001F\u007F]/.test(trimmed))
-            return { ok: false, error: '账号备注不能包含换行或控制字符' };
+            return { ok: false, error: '频道名称不能包含换行或控制字符' };
         const name = trimmed || autoAccountName(platform, nameOrdinal);
         return { ok: true, settings: { name, nameOrdinal, assistant, agentPreset, cwd, permission, privateAccess, sendMode, commandPermissions } };
     }

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -124,7 +124,7 @@ test('account view exposes app id / secret presence and the secret route reveals
       feishu_test: {
         id: 'feishu_test',
         platform: 'feishu',
-        name: '飞书账号1',
+        name: '飞书频道1',
         nameOrdinal: 1,
         enabled: false,
         receiveEnabled: false,
@@ -159,7 +159,9 @@ test('account view exposes app id / secret presence and the secret route reveals
     const account = list.channels[0].accounts[0]
     assert.equal(account.appId, 'cli_test')
     assert.equal(account.hasAppSecret, true)
-    assert.equal(account.provisioning.checkedAt, '2026-11-04T00:00:00.000Z')
+    assert.equal(account.provisioning, undefined)
+    const saved = JSON.parse(readFileSync(join(stateDir, 'channels.json'), 'utf8'))
+    assert.equal(saved.channels.feishu_test.config.provisioning, undefined)
 
     const req = Readable.from(['{}'])
     req.url = '/api/dsh-feishu-channels/accounts/feishu_test/secret'

@@ -256,7 +256,7 @@ export class ImEngine {
     async reloadChannel(channelId, options = {}) {
         this.cancelInputs(channelId);
         for (const sessionId of this.router.sessionIdsForChannel(channelId)) {
-            this.cancelSessionInteractions(sessionId, new Error('账号配置已更新'));
+            this.cancelSessionInteractions(sessionId, new Error('频道配置已更新'));
         }
         if (options.resetSessions)
             await this.router.resetChannelSessions(channelId);

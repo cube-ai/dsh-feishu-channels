@@ -166,7 +166,7 @@ export class PairingHub {
                     session.status = 'saving';
                     session.qrUrl = undefined;
                     session.qrImage = undefined;
-                    session.hint = '正在保存账号';
+                    session.hint = '正在保存频道';
                     const credentials = { ...session.extra, ...polled.credentials };
                     try {
                         await this.onSuccess?.(session.channelId, credentials);
@@ -224,6 +224,6 @@ export class PairingHub {
 }
 function hintOf(id) {
     if (id === 'feishu')
-        return '请使用飞书扫描二维码，将自动创建机器人';
+        return '请在手机上使用飞书App扫描二维码，将自动创建飞书机器人应用';
     return '请使用飞书扫描二维码';
 }

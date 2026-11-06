@@ -17,7 +17,7 @@ function makeData() {
       accounts: [{
         id: 'feishu_test',
         platform: 'feishu',
-        name: '飞书账号1',
+        name: '飞书频道1',
         autoName: false,
         appId: 'cli_test',
         hasAppSecret: true,
@@ -114,7 +114,7 @@ test('account page renders add button, account name, settings button and session
   const nodes = flattenChildren(tree)
   const buttons = nodes.filter((node) => node.type === 'button')
   assert.ok(buttons.some((node) => textOf(node) === 'action.addAccount'))
-  assert.ok(nodes.some((node) => textOf(node) === '飞书账号1'))
+  assert.ok(nodes.some((node) => textOf(node) === '飞书频道1'))
   assert.ok(buttons.some((node) => node.props && (node.props['aria-label'] === 'action.settings' || node.props.title === 'action.settings')))
   assert.ok(nodes.some((node) => textOf(node) === '测试会话'))
   assert.ok(nodes.some((node) => node.type === 'button' && String(node.props.className).includes('is-current')), 'current session should be highlighted')

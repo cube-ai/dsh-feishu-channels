@@ -1,7 +1,7 @@
 {
   "name": "@cubeai/dsh-feishu-channels",
-  "version": "0.2.0",
-  "description": "DSH飞书频道 — 将飞书机器人接入本机 DeepSeek Harness。",
+  "version": "0.2.1",
+  "description": "DSH飞书频道 — 将飞书机器人应用接入本机 DeepSeek Harness。",
   "type": "module",
   "main": "src/index.js",
   "exports": {

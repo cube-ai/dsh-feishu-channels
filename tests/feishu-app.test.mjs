@@ -13,9 +13,9 @@ function decodeAddons(value) {
 }
 
 test('QR url prefills the channel name, scopes and create-only mode', () => {
-  const url = new URL(decorateQrUrl('https://accounts.feishu.cn/oauth/v1/app/registration?existing=1', { name: ' 飞书账号1 ' }))
+  const url = new URL(decorateQrUrl('https://accounts.feishu.cn/oauth/v1/app/registration?existing=1', { name: ' 飞书频道1 ' }))
   assert.equal(url.searchParams.get('existing'), '1')
-  assert.equal(url.searchParams.get('name'), '飞书账号1')
+  assert.equal(url.searchParams.get('name'), '飞书频道1')
   assert.equal(url.searchParams.get('createOnly'), 'true')
   assert.equal(url.searchParams.get('source'), 'dsh-feishu-channels')
   assert.deepEqual(decodeAddons(url.searchParams.get('addons')), {
@@ -52,7 +52,7 @@ import { beginFeishuQr } from '../src/channels/qr/feishu.js'
 function makeFakeClient() {
   const calls = []
   const app = {
-    app_name: '飞书账号1',
+    app_name: '飞书频道1',
     scopes: [
       { scope: 'im:message' },
       { scope: 'im:message.send_as_user' },
@@ -95,9 +95,9 @@ function makeFakeClient() {
 
 test('provisioning applies name, scopes and redirect URLs through v7', async () => {
   const { client, calls } = makeFakeClient()
-  const result = await provisionFeishuApp({ appId: 'cli_test', appSecret: 'secret', name: '飞书账号1', client })
+  const result = await provisionFeishuApp({ appId: 'cli_test', appSecret: 'secret', name: '飞书频道1', client })
   assert.equal(result.name.applied, true)
-  assert.equal(result.name.present, '飞书账号1')
+  assert.equal(result.name.present, '飞书频道1')
   assert.equal(result.name.ok, true)
   assert.deepEqual(result.scopes.missing, [])
   assert.deepEqual(result.redirectUrls.missing, [])
@@ -126,7 +126,7 @@ test('provisioning falls back to v6 redirects and merges existing URLs', async (
     throw Object.assign(new Error('forbidden'), { code: 210504 })
   }
   app.security.redirect_urls = ['https://existing.example/callback']
-  const result = await provisionFeishuApp({ appId: 'cli_test', appSecret: 'secret', name: '飞书账号1', client })
+  const result = await provisionFeishuApp({ appId: 'cli_test', appSecret: 'secret', name: '飞书频道1', client })
   const v6Patch = calls.find(([name]) => name === 'v6.patch')
   assert.ok(v6Patch, 'v6 redirect fallback should be called')
   assert.deepEqual(v6Patch[1].data.security.redirect_urls, [
@@ -162,9 +162,9 @@ test('beginFeishuQr reads the channel name from pairing settings', async () => {
     return { ok: true, status: 200, async json() { return {} } }
   }
   try {
-    const begun = await beginFeishuQr({ __setting_name: '飞书账号7' })
+    const begun = await beginFeishuQr({ __setting_name: '飞书频道7' })
     const url = new URL(begun.qrUrl)
-    assert.equal(url.searchParams.get('name'), '飞书账号7')
+    assert.equal(url.searchParams.get('name'), '飞书频道7')
     assert.deepEqual(calls, ['init', 'begin'])
   } finally {
     globalThis.fetch = originalFetch
