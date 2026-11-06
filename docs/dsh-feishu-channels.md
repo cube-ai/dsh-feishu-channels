@@ -369,7 +369,7 @@ content-type: application/json
 - 自动 provisioning 的失败摘要会写 `gateway.log`；`/accounts/:id/provision` 的本次结果在响应中返回；
 - 状态文件中残留的 `config.provisioning` 会在加载时清理。
 
-重定向 URL 常量位于 `src/channels/feishu-app.js`，主要是本机 `dsh-remote-feishu` OAuth 回调地址和部署域名回调地址。本插件只负责把这些 URL 写入飞书应用配置，不处理这些 OAuth 回调。
+重定向 URL 常量位于 `src/channels/feishu-app.js`，主要是本机 `dsh-feishu-client` OAuth 回调地址和部署域名回调地址。本插件只负责把这些 URL 写入飞书应用配置，不处理这些 OAuth 回调。
 
 ## 8. Client 结构与界面
 
